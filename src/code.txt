@@ -1,0 +1,245 @@
+/* eslint-disable func-names */
+/* eslint-disable prefer-spread */
+/* eslint-disable no-nested-ternary */
+import React, { useEffect, useState } from 'react';
+import PropTypes from 'prop-types';
+import { Box, Heading, Text } from '@braineet/ui';
+import { v4 } from 'uuid';
+import {
+    VictoryChart,
+    VictoryArea,
+    VictoryAxis,
+    VictoryVoronoiContainer,
+    VictoryClipContainer,
+    VictoryTooltip,
+} from 'victory';
+import { format } from 'date-fns';
+import { CurrencyWrapper, LabelStyled, Line, TextStyled } from './style';
+
+const ChartArea = ({
+    values,
+    title,
+    colorTheme,
+    rightNumber,
+    name,
+    hasLabels,
+}) => {
+    const [id, setId] = useState(v4());
+    const [hasThemeColors, setHasThemeColors] = useState(false);
+    useEffect(() => {
+        if (/^#[0-9A-F]{6}$/i.test(colorTheme)) {
+            setHasThemeColors(true);
+            setId(id);
+        }
+    }, [colorTheme]);
+
+    const dateRelative = date => {
+        return format(new Date(date), 'MM/dd/yyyy');
+    };
+    const data =
+        values.history && values.history.filter(e => e.value).length
+            ? values.history
+                  .filter(e => e.value)
+                  .map(value => {
+                      const newArray = {};
+
+                      newArray.x = new Date(value.lastModified);
+                      newArray.y = value.value;
+
+                      return newArray;
+                  })
+            : [
+                  {
+                      x: new Date(),
+                      y: values.value.value,
+                  },
+              ];
+    data.push({
+        x: new Date(),
+        y: values.value.value,
+    });
+
+    const maxYvalue =
+        Math.max.apply(
+            Math,
+            data.map(function(o) {
+                return o.y;
+            }),
+        ) + 1;
+
+    const minYvalue = Math.min.apply(
+        Math,
+        data.map(function(o) {
+            return o.y;
+        }),
+    );
+
+    const HTMLFlyOut = ({ x, y, datum, width }) => (
+        <g style={{ pointerEvents: 'none' }}>
+            <foreignObject
+                x={x < 50 ? x : width < x + 50 ? x - 100 : x - 50}
+                y={y < 20 ? y : y - 20}
+                width="100"
+                height="100%"
+            >
+                <LabelStyled x={x} widthContainer={width}>
+                    <Box background="rgba(255, 255, 255, 0.6)" borderRadius={8}>
+                        <Text size="xs">
+                            {dateRelative(datum.x)}: <b>{datum.y}</b>
+                        </Text>
+                    </Box>
+                    <Line />
+                </LabelStyled>
+            </foreignObject>
+        </g>
+    );
+
+    HTMLFlyOut.propTypes = {
+        x: PropTypes.number.isRequired,
+        y: PropTypes.number.isRequired,
+        width: PropTypes.number.isRequired,
+        datum: PropTypes.object.isRequired,
+    };
+
+    return (
+        <Box>
+            {title && <Heading>{title}</Heading>}
+            {hasThemeColors && (
+                <svg width="0" height="0" style={{ position: 'absolute' }}>
+                    <defs>
+                        <linearGradient
+                            id={id}
+                            x1="0%"
+                            y1="0%"
+                            x2="0%"
+                            y2="100%"
+                        >
+                            <stop offset="0%" stopColor={`${colorTheme}3D`} />
+                            <stop offset="100%" stopColor={`${colorTheme}03`} />
+                        </linearGradient>
+                    </defs>
+                </svg>
+            )}
+            <CurrencyWrapper>
+                <Box flexGrow={1}>
+                    <VictoryChart
+                        width={400}
+                        height={100}
+                        padding={20}
+                        domain={{
+                            y: [
+                                minYvalue - Math.abs(maxYvalue) / 4,
+                                maxYvalue + Math.abs(minYvalue) / 4,
+                            ],
+                        }}
+                        containerComponent={
+                            <VictoryVoronoiContainer
+                                labels={hasLabels && (() => ' ')}
+                                labelComponent={
+                                    <VictoryTooltip
+                                        flyoutComponent={<HTMLFlyOut />}
+                                    />
+                                }
+                            />
+                        }
+                    >
+                        <VictoryArea
+                            padding={0}
+                            interpolation="monotoneX"
+                            data={data}
+                            name={name}
+                            scale={{ x: 'time' }}
+                            groupComponent={
+                                <VictoryClipContainer
+                                    clipPadding={{ right: 10, left: 10 }}
+                                />
+                            }
+                            style={{
+                                data: {
+                                    stroke: colorTheme,
+                                    fill: hasThemeColors
+                                        ? `url(#${id})`
+                                        : colorTheme,
+                                    strokeWidth: 3,
+                                    strokeLinecap: 'round',
+                                    fillOpacity: hasThemeColors ? 1 : 0.04,
+                                },
+                            }}
+                        />
+
+                        <VictoryAxis
+                            style={{
+                                tickLabels: { display: 'none' },
+                                axis: { stroke: 'transparent' },
+                            }}
+                        />
+                    </VictoryChart>
+                </Box>
+                <Box textAlign="right">
+                    <TextStyled color={colorTheme} size="xs">
+                        {rightNumber}
+                    </TextStyled>
+                </Box>
+            </CurrencyWrapper>
+        </Box>
+    );
+};
+
+ChartArea.propTypes = {
+    values: PropTypes.object.isRequired,
+    colorTheme: PropTypes.string,
+    rightNumber: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+    title: PropTypes.string,
+    name: PropTypes.string,
+    hasLabels: PropTypes.bool,
+};
+ChartArea.defaultProps = {
+    colorTheme: 'black',
+    rightNumber: '',
+    title: null,
+    name: '',
+    hasLabels: false,
+};
+
+export default ChartArea;
+
+/*   <VictoryVoronoiContainer
+        labels={hasLabels && (({ datum }) => `${datum.y}`)}
+        labelComponent={
+            <VictoryTooltip style={{ fill: 'tomato' }} constrainToVisibleArea />
+        }
+    />; */
+
+/////////////////////////////////////////////////////
+
+/* eslint-disable import/prefer-default-export */
+import styled from 'styled-components';
+
+import { Text } from '@braineet/ui';
+
+export const Line = styled(Text)`
+    overflow: hidden;
+
+    text-overflow: ellipsis;
+
+    display: -webkit-box;
+
+    -webkit-line-clamp: 2;
+
+    -webkit-box-orient: vertical;
+
+    word-break: break-word;
+`;
+
+export const LongText = styled(Text)`
+    word-wrap: break-word;
+`;
+
+::::::::::::::::::::::::::::::::::::::::::::::
+    {project.members &&
+                        project.members.map(
+                            (member, index) =>
+                                index < 5 && (
+                                   <p>ded</p
+                                ),
+                        )}
